@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AR-DALTON-NEWf24zoh</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a0f;
+      color: #e0e0f0;
+      font-family: 'Courier New', monospace;
+      overflow: hidden;
+      height: 100vh;
+    }
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+    }
+    #ui {
+      position: fixed;
+      top: 24px;
+      left: 24px;
+      z-index: 10;
+      pointer-events: none;
+    }
+    #ui h1 {
+      font-size: 13px;
+      letter-spacing: 0.2em;
+      color: #7ec8e3;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    #ui p {
+      font-size: 11px;
+      color: #555570;
+      letter-spacing: 0.1em;
+    }
+    #info {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      color: #444460;
+      letter-spacing: 0.15em;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<div id="canvas-container"></div>
+
+<div id="ui">
+  <h1>AR-DALTON</h1>
+  <p>Hukum Kekekalan Massa · Lavoisier</p>
+</div>
+
+<div id="info">DRAG TO ROTATE · SCROLL TO ZOOM</div>
+
+<!-- Three.js CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+// ─── Scene Setup ───────────────────────────────────────────
+const scene    = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0a0f);
+scene.fog        = new THREE.Fog(0x0a0a0f, 20, 50);
+
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 100);
+camera.position.set(0, 0, 18);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(devicePixelRatio);
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+// ─── Lighting ──────────────────────────────────────────────
+const ambient = new THREE.AmbientLight(0xffffff, 0.8);
+scene.add(ambient);
+
+const point = new THREE.PointLight(0xffffff, 0.5, 60);
+point.position.set(5, 10, 10);
+scene.add(point);
+
+// ─── Materials ─────────────────────────────────────────────
+const matMg = new THREE.MeshStandardMaterial({
+  color: 0xff7675,
+  roughness: 0.35,
+  metalness: 0.4,
+});
+const matO2 = new THREE.MeshStandardMaterial({
+  color: 0x0984e3,
+  roughness: 0.25,
+  metalness: 0.1,
+});
+
+// ─── Magnesium Ribbon ──────────────────────────────────────
+const mgGeo = new THREE.BoxGeometry(2, 0.15, 0.8);
+const mgMesh = new THREE.Mesh(mgGeo, matMg);
+mgMesh.position.set(0, -3.5, 0);
+scene.add(mgMesh);
+
+// ─── O₂ Particles (30 bola biru) ──────────────────────────
+const seededRand = (() => {
+  let s = 42;
+  return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
+})();
+
+const sphereGeo = new THREE.SphereGeometry(0.15, 16, 16);
+for (let i = 0; i < 30; i++) {
+  const mesh = new THREE.Mesh(sphereGeo, matO2);
+  mesh.position.set(
+    (seededRand() - 0.5) * 6,
+    (seededRand() - 0.5) * 8,
+    (seededRand() - 0.5) * 6
+  );
+  scene.add(mesh);
+}
+
+// ─── Mouse Orbit ───────────────────────────────────────────
+let isDragging = false;
+let prevX = 0, prevY = 0;
+let rotX = 0, rotY = 0;
+let zoom = 18;
+
+const pivot = new THREE.Group();
+scene.add(pivot);
+pivot.add(mgMesh);
+
+renderer.domElement.addEventListener('mousedown', e => {
+  isDragging = true;
+  prevX = e.clientX;
+  prevY = e.clientY;
+});
+window.addEventListener('mouseup', () => isDragging = false);
+window.addEventListener('mousemove', e => {
+  if (!isDragging) return;
+  rotY += (e.clientX - prevX) * 0.005;
+  rotX += (e.clientY - prevY) * 0.005;
+  prevX = e.clientX;
+  prevY = e.clientY;
+});
+window.addEventListener('wheel', e => {
+  zoom = Math.max(5, Math.min(35, zoom + e.deltaY * 0.02));
+});
+
+// ─── Touch support ─────────────────────────────────────────
+let lastTouch = null;
+renderer.domElement.addEventListener('touchstart', e => {
+  lastTouch = e.touches[0];
+});
+renderer.domElement.addEventListener('touchmove', e => {
+  if (!lastTouch) return;
+  const t = e.touches[0];
+  rotY += (t.clientX - lastTouch.clientX) * 0.005;
+  rotX += (t.clientY - lastTouch.clientY) * 0.005;
+  lastTouch = t;
+  e.preventDefault();
+}, { passive: false });
+
+// ─── Resize ────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// ─── Animate ───────────────────────────────────────────────
+function animate() {
+  requestAnimationFrame(animate);
+
+  // Apply orbit rotation
+  pivot.rotation.x = rotX;
+  pivot.rotation.y = rotY;
+  camera.position.z = zoom;
+
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
